@@ -1,0 +1,7 @@
+# Build output
+expirywatch
+expirywatch.exe
+dist/
+
+# Local config may contain webhook URLs and real hostnames
+config.json

@@ -1,0 +1,28 @@
+{
+  "webhook_url": "",
+  "webhook_format": "json",
+  "webhook_skip_ok": false,
+  "warn_days": 30,
+  "critical_days": 7,
+  "timeout": "10s",
+  "targets": [
+    {
+      "name": "example.com TLS",
+      "type": "tls",
+      "address": "example.com:443"
+    },
+    {
+      "name": "example.com domain",
+      "type": "domain",
+      "address": "example.com"
+    },
+    {
+      "name": "example.com strict",
+      "type": "tls",
+      "address": "example.com:443",
+      "warn_days": 60,
+      "critical_days": 14,
+      "timeout": "5s"
+    }
+  ]
+}
