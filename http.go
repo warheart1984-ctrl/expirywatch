@@ -17,17 +17,23 @@ type HTTPChecker struct{}
 func (HTTPChecker) Type() string { return "http" }
 
 func (HTTPChecker) Check(ctx context.Context, t Target) (time.Time, error) {
+	// Errors name t.Address as written, not the expanded URL, so secrets
+	// from ${VAR} stay out of the output.
 	url := strings.TrimSpace(t.Address)
 	if url == "" {
 		return time.Time{}, fmt.Errorf("missing url in %q", t.Address)
+	}
+	expanded, err := expandEnv(url)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("address: %w", err)
 	}
 	path := strings.TrimSpace(t.ExpiryPath)
 	if path == "" {
 		return time.Time{}, fmt.Errorf("missing expiry_path for %q", t.Name)
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, expanded, nil)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("build request: %w", err)
+		return time.Time{}, fmt.Errorf("build request: %w", withoutURL(err))
 	}
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("User-Agent", "expirywatch/"+version)
@@ -36,7 +42,7 @@ func (HTTPChecker) Check(ctx context.Context, t Target) (time.Time, error) {
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("http %s: %w", url, err)
+		return time.Time{}, fmt.Errorf("http %s: %w", url, withoutURL(err))
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {

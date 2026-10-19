@@ -164,14 +164,15 @@ func sendWebhook(ctx context.Context, url, format string, payload webhookPayload
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return err
+		return withoutURL(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "expirywatch/"+version)
 
+	// The webhook URL is itself a secret, so keep it out of the error.
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return err
+		return withoutURL(err)
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))

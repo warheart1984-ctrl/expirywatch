@@ -52,7 +52,31 @@ func LoadConfig(path string) (*Config, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
+	if err := cfg.expandEnv(); err != nil {
+		return nil, err
+	}
 	return &cfg, nil
+}
+
+// expandEnv expands ${VAR} in webhook_url and checks that every http target's
+// address expands. Addresses are kept as written, so a secret in them never
+// shows up in the table or the webhook report; HTTPChecker expands them again
+// when it builds the request.
+func (c *Config) expandEnv() error {
+	webhook, err := expandEnv(c.WebhookURL)
+	if err != nil {
+		return fmt.Errorf("config: webhook_url: %w", err)
+	}
+	c.WebhookURL = webhook
+	for _, t := range c.Targets {
+		if t.Type != "http" {
+			continue
+		}
+		if _, err := expandEnv(t.Address); err != nil {
+			return fmt.Errorf("config: target %q: address: %w", t.Name, err)
+		}
+	}
+	return nil
 }
 
 func (c *Config) applyDefaults() {

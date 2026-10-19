@@ -111,6 +111,23 @@ Fetches the URL and reads the date at `expiry_path` (dot-separated keys; numbers
 
 `warn_days`, `critical_days` and `timeout` can also be set per target.
 
+### Secrets from the environment
+
+`webhook_url` and the `address` of `http` targets can reference environment variables as `${NAME}`, so webhook URLs and API keys don't have to live in `config.json`:
+
+```json
+{
+  "webhook_url": "${SLACK_WEBHOOK_URL}",
+  "targets": [
+    { "name": "license", "type": "http", "address": "https://api.example.com/v1/license?key=${LICENSE_KEY}", "expiry_path": "expires_at" }
+  ]
+}
+```
+
+- Only the braced form `${NAME}` is expanded. A lone `$` or `$NAME` is left as it is. Write `$${` for a literal `${`.
+- If a referenced variable is unset or empty, expirywatch stops with a config error (exit code 3) that names the variable.
+- Addresses are shown as written, with `${NAME}` and not the value, in the table, `--json` output and webhook reports. Error messages leave out the expanded URL too.
+
 ## Notifications
 
 - **`slack`**: Create a Slack [incoming webhook](https://api.slack.com/messaging/webhooks) and paste its URL.
