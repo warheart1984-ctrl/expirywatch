@@ -162,13 +162,12 @@ func TestSendWebhookNoRetryAfterCancel(t *testing.T) {
 	webhookRetryDelay = time.Hour // the cancelled context must win over the wait
 	srv, requests := hookServer(t, 500)
 
-	ctx, cancel := context.WithCancel(context.Background())
+	// The first attempt gets its 500 well within the deadline; the deadline
+	// then expires during the hour-long retry wait.
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
 	done := make(chan error, 1)
 	go func() { done <- sendWebhook(ctx, srv.URL, webhookFormatJSON, samplePayload()) }()
-	for len(requests()) == 0 {
-		time.Sleep(time.Millisecond)
-	}
-	cancel()
 
 	select {
 	case err := <-done:
