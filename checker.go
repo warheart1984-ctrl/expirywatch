@@ -21,12 +21,20 @@ type Result struct {
 	Status    string     `json:"status"`
 	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 	DaysLeft  *int       `json:"days_left,omitempty"`
-	Err       string     `json:"error,omitempty"`
+	// Note adds detail to a successful check, such as which IP served the
+	// earliest certificate for an all_ips target.
+	Note string `json:"note,omitempty"`
+	Err  string `json:"error,omitempty"`
 }
 
 type Checker interface {
 	Type() string
 	Check(ctx context.Context, t Target) (time.Time, error)
+}
+
+// noteChecker is implemented by checkers that can explain their result.
+type noteChecker interface {
+	CheckWithNote(ctx context.Context, t Target) (time.Time, string, error)
 }
 
 func checkerFor(t Target) (Checker, error) {

@@ -4,15 +4,25 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net"
+	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
 // tlsRoots is the trust store used to verify certificate chains.
 // nil means the system store; tests replace it.
 var tlsRoots *x509.CertPool
+
+// lookupHost and dialTCP are how the TLS checker resolves and connects.
+// Tests replace them to put several fake addresses behind one hostname.
+var (
+	lookupHost = net.DefaultResolver.LookupHost
+	dialTCP    = (&net.Dialer{}).DialContext
+)
 
 type TLSChecker struct{}
 
@@ -22,7 +32,15 @@ func (TLSChecker) Type() string { return "tls" }
 // presents, so an intermediate that runs out before the leaf is caught.
 // An already expired certificate is returned as a past time rather than an
 // error, so it is reported as CRITICAL with a negative day count.
-func (TLSChecker) Check(ctx context.Context, t Target) (time.Time, error) {
+func (c TLSChecker) Check(ctx context.Context, t Target) (time.Time, error) {
+	expires, _, err := c.CheckWithNote(ctx, t)
+	return expires, err
+}
+
+// CheckWithNote is Check plus a note for the report. With all_ips it checks
+// every address the hostname resolves to, with SNI set to the hostname, and
+// the note says which address served the earliest expiry.
+func (TLSChecker) CheckWithNote(ctx context.Context, t Target) (time.Time, string, error) {
 	host := t.Address
 	port := "443"
 	if h, p, err := net.SplitHostPort(t.Address); err == nil {
@@ -31,11 +49,87 @@ func (TLSChecker) Check(ctx context.Context, t Target) (time.Time, error) {
 	}
 	host = strings.TrimPrefix(strings.TrimSuffix(host, "]"), "[")
 	if host == "" {
-		return time.Time{}, fmt.Errorf("missing host in %q", t.Address)
+		return time.Time{}, "", fmt.Errorf("missing host in %q", t.Address)
+	}
+	if !t.AllIPs {
+		expires, err := checkTLSAddr(ctx, host, net.JoinHostPort(host, port))
+		return expires, "", err
 	}
 
-	dialer := &net.Dialer{}
-	conn, err := dialer.DialContext(ctx, "tcp", net.JoinHostPort(host, port))
+	ips, err := resolveIPs(ctx, host)
+	if err != nil {
+		return time.Time{}, "", err
+	}
+	type ipResult struct {
+		expires time.Time
+		err     error
+	}
+	results := make([]ipResult, len(ips))
+	var wg sync.WaitGroup
+	for i, ip := range ips {
+		wg.Add(1)
+		go func(i int, ip string) {
+			defer wg.Done()
+			expires, err := checkTLSAddr(ctx, host, net.JoinHostPort(ip, port))
+			results[i] = ipResult{expires, err}
+		}(i, ip)
+	}
+	wg.Wait()
+
+	// One bad node is what this option exists to catch, so any failure makes
+	// the whole target an error, naming the address.
+	var errs []string
+	for i, r := range results {
+		if r.err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", ips[i], r.err))
+		}
+	}
+	if len(errs) > 0 {
+		return time.Time{}, "", errors.New(strings.Join(errs, "; "))
+	}
+	earliest := 0
+	for i, r := range results {
+		if r.expires.Before(results[earliest].expires) {
+			earliest = i
+		}
+	}
+	note := fmt.Sprintf("earliest on %s, %d IPs checked", ips[earliest], len(ips))
+	if len(ips) == 1 {
+		note = fmt.Sprintf("on %s, 1 IP checked", ips[0])
+	}
+	return results[earliest].expires, note, nil
+}
+
+// resolveIPs returns the host's addresses, sorted and without duplicates.
+// An IP literal resolves to itself.
+func resolveIPs(ctx context.Context, host string) ([]string, error) {
+	if ip := net.ParseIP(host); ip != nil {
+		return []string{ip.String()}, nil
+	}
+	addrs, err := lookupHost(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]bool)
+	var ips []string
+	for _, a := range addrs {
+		ip := net.ParseIP(a)
+		if ip == nil || seen[ip.String()] {
+			continue
+		}
+		seen[ip.String()] = true
+		ips = append(ips, ip.String())
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("lookup %s: no addresses", host)
+	}
+	sort.Strings(ips)
+	return ips, nil
+}
+
+// checkTLSAddr connects to addr, sends host as SNI and returns the chain's expiry.
+func checkTLSAddr(ctx context.Context, host, addr string) (time.Time, error) {
+	conn, err := dialTCP(ctx, "tcp", addr)
 	if err != nil {
 		return time.Time{}, err
 	}

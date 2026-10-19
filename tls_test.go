@@ -40,6 +40,7 @@ func newTestCert(t *testing.T, name string, notAfter time.Time, parent *testCert
 		tmpl.KeyUsage = x509.KeyUsageDigitalSignature
 		tmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}
 		tmpl.IPAddresses = []net.IP{net.ParseIP("127.0.0.1")}
+		tmpl.DNSNames = []string{"lb.test"}
 	}
 	signer, signerKey := tmpl, key
 	if parent != nil {

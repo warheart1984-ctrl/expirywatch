@@ -71,6 +71,22 @@ func printResults(results []Result, out io.Writer) {
 	}
 	tw.Flush()
 
+	hasNotes := false
+	for _, r := range results {
+		if r.Note != "" {
+			hasNotes = true
+			break
+		}
+	}
+	if hasNotes {
+		fmt.Fprintln(out)
+		for _, r := range results {
+			if r.Note != "" {
+				fmt.Fprintf(out, "note: %s (%s): %s\n", r.Name, r.Address, r.Note)
+			}
+		}
+	}
+
 	hasErrors := false
 	for _, r := range results {
 		if r.Err != "" {
@@ -132,6 +148,9 @@ func formatMessage(payload webhookPayload) string {
 				fmt.Fprintf(&b, ": %s", r.Err)
 			case r.ExpiresAt != nil && r.DaysLeft != nil:
 				fmt.Fprintf(&b, ": expires %s (%s)", r.ExpiresAt.UTC().Format("2006-01-02"), describeDays(*r.DaysLeft))
+				if r.Note != "" {
+					fmt.Fprintf(&b, ", %s", r.Note)
+				}
 			}
 		}
 	}

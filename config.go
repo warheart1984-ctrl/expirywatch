@@ -35,6 +35,8 @@ type Target struct {
 	Timeout      string `json:"timeout"`
 	ExpiryPath   string `json:"expiry_path"`
 	TokenEnv     string `json:"token_env"`
+	// AllIPs makes a tls target check every address its host resolves to.
+	AllIPs bool `json:"all_ips"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -160,6 +162,9 @@ func (c *Config) validate() error {
 			}
 		default:
 			return fmt.Errorf("config: target %q: unsupported type %q", t.Name, t.Type)
+		}
+		if t.AllIPs && t.Type != "tls" {
+			return fmt.Errorf("config: target %q: all_ips only applies to tls targets", t.Name)
 		}
 		warn := c.warnDaysFor(t)
 		critical := c.criticalDaysFor(t)

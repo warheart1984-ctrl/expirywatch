@@ -117,7 +117,12 @@ func checkTarget(parent context.Context, cfg *Config, t Target) Result {
 	ctx, cancel := context.WithTimeout(parent, d)
 	defer cancel()
 
-	expires, err := checker.Check(ctx, t)
+	var expires time.Time
+	if nc, ok := checker.(noteChecker); ok {
+		expires, result.Note, err = nc.CheckWithNote(ctx, t)
+	} else {
+		expires, err = checker.Check(ctx, t)
+	}
 	if err != nil {
 		result.Status = StatusError
 		result.Err = err.Error()

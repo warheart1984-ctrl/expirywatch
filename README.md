@@ -75,6 +75,20 @@ expirywatch --config config.json
 
 Connects to the server and reports the **earliest expiry anywhere in the chain it presents**, so an intermediate certificate that runs out before your own certificate is caught. The chain is verified against the system trust store; an untrusted or mismatched certificate is reported as ERROR. An already expired certificate is reported as CRITICAL with negative days left. The port defaults to 443.
 
+#### Checking every server behind a hostname
+
+```json
+{ "name": "shop", "type": "tls", "address": "shop.example.com", "all_ips": true }
+```
+
+With `"all_ips": true`, expirywatch resolves the hostname, connects to **every** IPv4 and IPv6 address it returns (sending the hostname as SNI), and reports the earliest expiry along with the IP that served it:
+
+```
+note: shop (shop.example.com): earliest on 203.0.113.7, 4 IPs checked
+```
+
+This catches a load balancer where one node still has an old certificate. If any address fails (no connection, untrusted certificate, wrong name), the target reports ERROR and names that address. On a machine without IPv6 connectivity, a hostname with IPv6 records will report those addresses as failures.
+
 ### `domain`: registration expiry
 
 ```json
