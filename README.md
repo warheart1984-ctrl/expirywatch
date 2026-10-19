@@ -81,7 +81,9 @@ Connects to the server and reports the **earliest expiry anywhere in the chain i
 { "name": "my domain", "type": "domain", "address": "example.com" }
 ```
 
-Looks up the expiration date through [RDAP](https://about.rdap.org/) via rdap.org. Most generic TLDs (`.com`, `.net`, `.org`, `.dev`, ...) work. Some country-code registries don't publish expiry dates over RDAP; those targets report ERROR.
+Looks up the expiration date through [RDAP](https://about.rdap.org/). At the start of each run, expirywatch fetches the [IANA RDAP bootstrap file](https://data.iana.org/rdap/dns.json) once and asks the TLD's own registry. If the TLD isn't listed there, or the file can't be fetched, it falls back to rdap.org.
+
+Most generic TLDs (`.com`, `.net`, `.org`, `.dev`, ...) work. A TLD with no RDAP service at all reports an ERROR such as `no RDAP service for .de`. Some registries run RDAP but don't publish expiry dates; those report `no expiration event`.
 
 ### `http`: any expiry date in a JSON API
 
