@@ -16,7 +16,17 @@ error: untrusted root (untrusted-root.badssl.com:443): certificate verification 
 summary: 2 ok, 0 warn, 1 critical, 1 error (total 4)
 ```
 
-## Install
+## Download
+
+Prebuilt binaries for Windows, Linux and macOS (amd64 and arm64) are attached to each [GitHub release](https://github.com/warheart1984-ctrl/expirywatch/releases/latest). Download the one for your system, rename it to `expirywatch` (or `expirywatch.exe` on Windows) and put it somewhere on your `PATH`. On Linux and macOS, make it executable with `chmod +x expirywatch`.
+
+Each release also has a `SHA256SUMS` file to check the download:
+
+```bash
+sha256sum --ignore-missing -c SHA256SUMS
+```
+
+## Install from source
 
 Needs Go 1.27 or newer.
 
