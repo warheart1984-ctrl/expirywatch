@@ -144,6 +144,8 @@ expirywatch: 1 critical, 1 warn, 0 error, 3 ok (total 5)
 
 Set `"webhook_skip_ok": true` to stay quiet on days when everything is fine.
 
+If the webhook fails with a network error or a 5xx response, expirywatch waits 2 seconds and tries once more. A 4xx response, like a wrong or revoked URL, is not retried. A failed webhook is reported on stderr and doesn't change the exit code.
+
 ## Running it daily
 
 **Windows** (Task Scheduler):

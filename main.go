@@ -65,7 +65,8 @@ func run(args []string) int {
 	}
 
 	if !*noWebhook && cfg.WebhookURL != "" && shouldNotify(cfg, payload.Summary) {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		// Room for two 10s attempts plus the retry delay.
+		ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 		if err := sendWebhook(ctx, cfg.WebhookURL, cfg.WebhookFormat, payload); err != nil {
 			fmt.Fprintln(os.Stderr, "expirywatch: webhook:", err)
 		}

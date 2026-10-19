@@ -157,14 +157,43 @@ func truncateRunes(s string, max int) string {
 	return string(r[:max-1]) + "…"
 }
 
+// webhookRetryDelay is how long sendWebhook waits before its one retry, and
+// webhookAttemptTimeout caps each attempt. They are vars so tests can shorten them.
+var (
+	webhookRetryDelay     = 2 * time.Second
+	webhookAttemptTimeout = 10 * time.Second
+)
+
+// sendWebhook posts the report, retrying once after webhookRetryDelay on a
+// network error or a 5xx response. A 4xx is not retried, since sending the
+// same request again won't change the answer.
 func sendWebhook(ctx context.Context, url, format string, payload webhookPayload) error {
 	body, err := webhookBody(format, payload)
 	if err != nil {
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	retry, err := postWebhook(ctx, url, body)
+	if err == nil || !retry {
+		return err
+	}
+	select {
+	case <-time.After(webhookRetryDelay):
+	case <-ctx.Done():
+		return err
+	}
+	if _, err := postWebhook(ctx, url, body); err != nil {
+		return fmt.Errorf("%w (after 1 retry)", err)
+	}
+	return nil
+}
+
+// postWebhook makes one attempt and reports whether a failure is worth retrying.
+func postWebhook(ctx context.Context, url string, body []byte) (retry bool, err error) {
+	attemptCtx, cancel := context.WithTimeout(ctx, webhookAttemptTimeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(attemptCtx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return withoutURL(err)
+		return false, withoutURL(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "expirywatch/"+version)
@@ -172,13 +201,13 @@ func sendWebhook(ctx context.Context, url, format string, payload webhookPayload
 	// The webhook URL is itself a secret, so keep it out of the error.
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return withoutURL(err)
+		return ctx.Err() == nil, withoutURL(err)
 	}
 	defer resp.Body.Close()
 	io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("webhook: unexpected status %s", resp.Status)
+		return resp.StatusCode >= 500, fmt.Errorf("webhook: unexpected status %s", resp.Status)
 	}
-	return nil
+	return false, nil
 }

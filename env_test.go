@@ -173,6 +173,7 @@ func TestHTTPCheckerErrorHidesSecret(t *testing.T) {
 }
 
 func TestSendWebhookErrorHidesURL(t *testing.T) {
+	fastRetry(t)
 	srv := httptest.NewServer(http.NotFoundHandler())
 	hook := srv.URL + "/hooks/s3cret"
 	srv.Close()
